@@ -1,4 +1,4 @@
-const redlock = require('../helper/redlock');
+const redis = require('../helper/redis');
 
 module.exports = {
     lock: (req, res) => {
@@ -8,35 +8,43 @@ module.exports = {
                 message: 'Parameter required'
             });
         }
-        // console.log(redlock);
-        //ttl is 50secs
-        redlock.lock(req.body.resourceId, 5000, function (err, lock) {
-            if (err) {
+        const lockId = req.body.resourceId;
+        const timeOut = parseInt(Date.now()) + parseInt(process.env.DEFAULT_TIMEOUT) + 1;
+
+        redis.SETNX(lockId, timeOut, (err, result) => {
+            if (err || result == null) {
                 console.log(err);
                 return res.status(400).send({
                     error: true,
-                    message: err.message
+                    message: err ? err.message : "Some error occured"
+                });
+            }
+            if (!result) {
+                return res.status(400).send({
+                    error: true,
+                    message: 'Resource is already in use'
                 });
             }
             return res.status(200).send({
                 error: false,
-                data: lock
+                data: result
             });
-        })
+        });
+
+
     },
     unlock: (req, res) => {
-        if (!req.body.lock) {
+        if (!req.body.resourceId) {
             return res.status(400).send({
                 error: true,
                 message: 'Parameter required'
             });
         }
-
-        redlock.unlock(req.body.lock, function (err) {
-            if (err) {
+        redis.DEL(req.body.resourceId, (err, result) => {
+            if (err || !result) {
                 return res.status(400).send({
                     error: true,
-                    message: err.message
+                    message: err ? err.message : 'Invalid resourceId'
                 });
             }
             return res.status(200).send({

@@ -4,6 +4,7 @@ const client = redis.createClient();
 
 client.on("error", function (err) {
     console.log("Error " + err);
+    process.exit(1);
 });
 
 client.on("connect", function () {
